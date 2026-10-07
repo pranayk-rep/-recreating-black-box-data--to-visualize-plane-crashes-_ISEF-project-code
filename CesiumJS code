@@ -1,0 +1,74 @@
+
+const viewer = new Cesium.Viewer("cesiumContainer", {
+  shouldAnimate: true // Starts the timeline animation automatically
+});
+
+const flightData = [
+  { time: "2026-10-04T12:00:00Z", lon: -122.6765, lat: 45.5231, alt: 3000 },
+  { time: "2026-10-04T12:00:30Z", lon: -122.6500, lat: 45.5350, alt: 2500 },
+  { time: "2026-10-04T12:01:00Z", lon: -122.6200, lat: 45.5400, alt: 1800 },
+  { time: "2026-10-04T12:01:30Z", lon: -122.5800, lat: 45.5300, alt: 1100 },
+  { time: "2026-10-04T12:02:00Z", lon: -122.5500, lat: 45.5100, alt: 500 },
+  { time: "2026-10-04T12:02:30Z", lon: -122.5200, lat: 45.4900, alt: 30 } // Impact approximation
+];
+
+
+const startTime = Cesium.JulianDate.fromIso8601(flightData[0].time);
+const stopTime = Cesium.JulianDate.fromIso8601(flightData[flightData.length - 1].time);
+
+
+viewer.clock.startTime = startTime.clone();
+viewer.clock.stopTime = stopTime.clone();
+viewer.clock.currentTime = startTime.clone();
+viewer.clock.clockRange = Cesium.ClockRange.CLAMPED; // Stops the timeline at the last data point
+viewer.clock.multiplier = 5; // Speeds up playback 5x
+
+
+// Sync the visual timeline UI
+viewer.timeline.zoomTo(startTime, stopTime);
+
+
+const positionProperty = new Cesium.SampledPositionProperty();
+
+
+flightData.forEach(point => {
+  const time = Cesium.JulianDate.fromIso8601(point.time);
+  // Cesium uses Cartesian3 (X,Y,Z coordinates mapped to the Earth's ellipsoid)
+  const position = Cesium.Cartesian3.fromDegrees(point.lon, point.lat, point.alt);
+ 
+  positionProperty.addSample(time, position);
+});
+
+const aircraftEntity = viewer.entities.add({
+  name: "Reconstructed Flight Path",
+  availability: new Cesium.TimeIntervalCollection([
+    new Cesium.TimeInterval({ start: startTime, stop: stopTime })
+  ]),
+ 
+  position: positionProperty,
+ 
+  orientation: new Cesium.VelocityOrientationProperty(positionProperty),
+ 
+  model: {
+    uri: "../SampleData/models/CesiumAir/Cesium_Air.glb",
+    minimumPixelSize: 64,
+    maximumScale: 20000
+  },
+
+  path: {
+    resolution: 1,
+    material: new Cesium.PolylineGlowMaterialProperty({
+      glowPower: 0.2,
+      color: Cesium.Color.RED // High visibility for investigation visuals
+    }),
+    width: 6,
+    leadTime: 0, // Don't show the future path
+    trailTime: 300 // Keep 5 minutes of path visible behind the plane
+  }
+});
+
+
+viewer.trackedEntity = aircraftEntity;
+
+
+
